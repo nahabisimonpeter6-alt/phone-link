@@ -36,12 +36,13 @@
       <div class="auth-card">
         <span class="section-number">01 / GET CONNECTED</span>
         <h2 id="auth-title">Welcome back.</h2>
-        <p id="auth-description" class="muted">Sign in to check on your phone.</p>
+        <p id="auth-description" class="muted">Sign in with an account you already created. New here? Choose Create an account below.</p>
         <form id="auth-form">
           <label for="username">Username</label>
           <input id="username" name="username" autocomplete="username" minlength="3" maxlength="40" pattern="[A-Za-z0-9_.\-]{3,40}" placeholder="Your username" required>
           <label for="password">Password</label>
           <input id="password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" placeholder="At least 10 characters" required>
+          <div id="confirm-password-field" hidden><label for="confirm-password">Confirm password</label><input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Enter your password again" disabled></div>
           <p id="auth-error" class="error" role="alert" hidden></p>
           <button id="auth-submit" class="button primary full" type="submit">Sign in <span aria-hidden="true">↗</span></button>
         </form>

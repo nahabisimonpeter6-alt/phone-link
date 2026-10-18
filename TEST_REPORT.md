@@ -8,7 +8,9 @@ Last retested: 19 October 2026 (Africa/Kampala).
 
 | Area | Result | Evidence |
 | --- | --- | --- |
-| API and access controls | PASS | 20 integration tests against real HTTP and SQLite |
+| API and access controls | PASS | 22 integration tests against real HTTP and SQLite |
+| Account creation required | PASS | Unknown-account/wrong-password login rejects access, issues no session cookie and leaves users/sessions unchanged; only explicit registration creates the account |
+| Sign-in page | PASS | Clear existing-account instructions, registration password confirmation, mismatched passwords rejected before account creation, passwords cleared when switching modes |
 | Sign in from another device | PASS | Separate browser cookie jar signs in after the original signs out, receives the paired phone's fix and its next movement; simulated clients, not physical phones |
 | Concurrent location ordering | PASS | Forced two requests to read the same old row, then made the older report commit last; the newer location survives |
 | Real street map | PASS | Firefox loaded visible 256 px OpenStreetMap street tiles; no placeholder map or application demo mode |
@@ -22,13 +24,16 @@ Last retested: 19 October 2026 (Africa/Kampala).
 | Directions and travel time link | PASS | Google Maps directions URL uses the latest destination and fresh viewer origin; stale/future/denied/stopped viewer origins omitted, canceled watch ignored, freshness rechecked on activation after a hidden-tab delay, no automatic external routing request |
 | Old/stopped location | PASS | Old fixes and stopped sharing are labeled; no old point is presented as a fresh fix |
 | Backend outage | PASS | Actual test server stopped; browser retained the last location with a warning and recovered after restart |
-| Concurrent traffic | PASS | 200 requests from 12 concurrent clients, zero HTTP errors; local p95 response time 43.1 ms |
+| Concurrent traffic | PASS | 200 requests from 12 concurrent clients, zero HTTP errors with DELETE journaling; local p95 response time 31.3 ms |
 | Unexpected process stop | PASS | Production server forcibly killed and restarted; accounts, sessions, phone credentials and committed locations survived |
+| Existing database upgrade | PASS | Legacy WAL database reopened with DELETE journaling; integrity, original account/session, paired token and location survive; login and new reports still work |
 | Database backup/restore | PASS | Live SQLite backup, integrity check, private permissions, overwrite refusal and restored reporting credentials verified |
 | Production serving | PASS | Waitress served the API, map assets and APK; secure cookies, HEAD, health, private access and revocation checked |
 | Android package | PASS | Java compiled against API 35; APK archive integrity and v2/v3 signatures verified; Android 8.0+ manifest checked |
 
 The concurrent-traffic result measures the backend on this computer. It is a small burst test, not a large-scale load test, endurance test, mobile network benchmark or hosting uptime measurement.
+
+The free-hosting guide targets a small PythonAnywhere project. SQLite now uses DELETE rollback journaling instead of WAL for network-filesystem compatibility. Local checks do not verify PythonAnywhere's actual storage locks, speed, expiry renewal or deployment; these remain real-host checks. The guide describes these limits and does not claim a deployed site or guaranteed recovery.
 
 ## Issues found and fixed
 

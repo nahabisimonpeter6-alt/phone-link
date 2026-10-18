@@ -103,6 +103,39 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(guest.request("/api/register", {"username": "newuser", "password": "short"})[0], 400)
         self.assertEqual(guest.request("/api/register", {"username": "owner", "password": "different-password"})[0], 409)
 
+    def test_login_requires_an_explicitly_created_account(self):
+        guest = Client(self.base)
+        credentials = {"username": "newcomer", "password": "newcomer-password"}
+        with self.server.db() as db:
+            users_before = [tuple(row) for row in db.execute("SELECT * FROM users ORDER BY id")]
+            sessions_before = [tuple(row) for row in db.execute("SELECT * FROM sessions ORDER BY token_hash")]
+
+        status, unknown_error, headers = guest.request("/api/login", credentials)
+        self.assertEqual(status, 401)
+        self.assertNotIn("Set-Cookie", headers)
+        status, wrong_password_error, headers = guest.request("/api/login", {
+            "username": "owner", "password": "wrong-password"})
+        self.assertEqual(status, 401)
+        self.assertNotIn("Set-Cookie", headers)
+        self.assertEqual(unknown_error, wrong_password_error)
+        self.assertEqual(guest.request("/api/me")[0], 401)
+        self.assertEqual(guest.request("/api/devices")[0], 401)
+        with self.server.db() as db:
+            self.assertEqual([tuple(row) for row in db.execute("SELECT * FROM users ORDER BY id")], users_before)
+            self.assertEqual([tuple(row) for row in db.execute("SELECT * FROM sessions ORDER BY token_hash")], sessions_before)
+
+        # The same credentials work only after the separate registration action.
+        self.assertEqual(guest.request("/api/register", credentials)[0], 200)
+        self.assertEqual(guest.request("/api/logout", {})[0], 200)
+        viewer = Client(self.base)
+        status, _, headers = viewer.request("/api/login", credentials)
+        self.assertEqual(status, 200)
+        self.assertIn("Set-Cookie", headers)
+        self.assertEqual(viewer.request("/api/me")[1]["username"], credentials["username"])
+        self.assertEqual(self.devices(viewer), [])
+        with self.server.db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users").fetchone()[0], len(users_before) + 1)
+
     def test_another_browser_can_sign_in_and_receive_phone_movement(self):
         device, token = self.pair()
         self.assertEqual(self.owner.request("/api/logout", {})[0], 200)
@@ -119,6 +152,48 @@ class TrackerTests(unittest.TestCase):
             self.assertEqual(saved["latitude"], latitude)
             self.assertEqual(saved["located_at"], timestamp)
         self.assertEqual(self.owner.request("/api/devices")[0], 401)
+
+    def test_wal_database_upgrade_preserves_account_session_and_phone(self):
+        # Simulate an existing installation before the rollback-journal change.
+        with self.server.db() as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode=WAL").fetchone()[0], "wal")
+        device, token = self.pair()
+        stamp = time.time() - 1
+        self.assertEqual(self.report(token, {"tracking": True, "battery": 81,
+            "location": {"latitude": .3476, "longitude": 32.583, "accuracy": 8,
+                         "timestamp": stamp}})[0], 200)
+        before = self.devices()[0]
+        database = self.server.db_path
+        with self.server.db() as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "wal")
+
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+        self.server = PhoneServer(("127.0.0.1", 0), database)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+        self.owner.base = self.base  # Keep the original browser's session cookie.
+
+        with self.server.db() as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "delete")
+            self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        self.assertEqual(self.owner.request("/api/me")[1]["username"], "owner")
+        self.assertEqual(self.devices(), [before])
+        viewer = Client(self.base)
+        self.assertEqual(viewer.request("/api/login", {
+            "username": "owner", "password": "correct-password"})[0], 200)
+        self.assertEqual(self.devices(viewer), [before])
+        self.assertEqual(self.report(token, {"tracking": True, "battery": 80,
+            "location": {"latitude": .3481, "longitude": 32.583, "accuracy": 9,
+                         "timestamp": stamp + 1}})[0], 200)
+        saved = self.devices()[0]
+        self.assertEqual(saved["id"], device["id"])
+        self.assertEqual(saved["latitude"], .3481)
+        self.assertEqual(saved["located_at"], stamp + 1)
+        self.assertEqual(saved["battery"], 80)
+        self.assertEqual(self.devices(viewer), [saved])
 
     def test_entire_location_flow_and_stop(self):
         device, token = self.pair()

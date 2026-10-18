@@ -100,7 +100,24 @@ def main():
             cmd("/url", {"url": f"http://127.0.0.1:{server.server_port}"})
             wait("!document.querySelector('#auth-view').hidden")
             screenshot("login.png")
-            click("#auth-switch"); fill("#username", "browser-test"); fill("#password", "browser-test-password")
+            assert script("return document.querySelector('#auth-description').textContent.includes('already created')")
+            assert script("return document.querySelector('#confirm-password').disabled")
+            fill("#username", "browser-test"); fill("#password", "browser-test-password")
+            click('#auth-submit')
+            wait("!document.querySelector('#auth-error').hidden && !document.querySelector('#auth-submit').disabled")
+            assert script("return document.querySelector('#dashboard').hidden && !document.querySelector('#auth-view').hidden"), 'Unknown account reached dashboard'
+            with server.db() as database:
+                assert database.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0
+                assert database.execute('SELECT COUNT(*) FROM sessions').fetchone()[0] == 0
+            click("#auth-switch")
+            assert script("return document.querySelector('#password').value") == '', 'Mode switch retained password'
+            assert not script("return document.querySelector('#confirm-password-field').hidden")
+            fill("#password", "browser-test-password"); fill('#confirm-password', 'different-password')
+            click('#auth-submit')
+            wait("document.querySelector('#auth-error').textContent.includes('do not match')")
+            with server.db() as database:
+                assert database.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0
+            fill('#confirm-password', 'browser-test-password')
             click("#auth-submit")
             wait("!document.querySelector('#dashboard').hidden && !document.querySelector('#empty-state').hidden")
             click("#add-phone"); fill("#phone-name", "Test Android <safe>"); click("#create-code")
@@ -246,7 +263,7 @@ def main():
             wait("!document.querySelector('#auth-view').hidden")
             fill("#username", "browser-test"); fill("#password", "browser-test-password"); click("#auth-submit")
             wait("!document.querySelector('#dashboard').hidden")
-            print("PASS: Firefox real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, Google Maps directions with current destination/fresh origin, stale/future viewer fixes, denial/timeout/canceled watcher, viewer privacy, stop/recovery, pairing and login.")
+            print("PASS: Firefox unknown-account login rejection, explicit registration/password confirmation, real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, Google Maps directions with current destination/fresh origin, stale/future viewer fixes, denial/timeout/canceled watcher, viewer privacy, stop/recovery, pairing and login.")
             print("Screenshots: dist/login.png, dist/dashboard.png, dist/dashboard-mobile.png (synthetic test data only)")
         finally:
             if session:

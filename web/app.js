@@ -66,11 +66,16 @@ async function showDashboard(user) {
 function setAuthMode(create) {
   creatingAccount = create;
   $('auth-title').textContent = creatingAccount ? 'Make yourself at home.' : 'Welcome back.';
-  $('auth-description').textContent = creatingAccount ? 'Create your private space for your phone.' : 'Sign in to check on your phone.';
+  $('auth-description').textContent = creatingAccount ? 'Create your account, then connect your Android phone. Choose a password you can keep safe.' : 'Sign in with an account you already created. New here? Choose Create an account below.';
   $('auth-submit').replaceChildren(document.createTextNode(creatingAccount ? 'Create account' : 'Sign in'), arrow('↗'));
   $('auth-switch-label').textContent = creatingAccount ? 'Already have an account?' : 'First time here?';
   $('auth-switch').textContent = creatingAccount ? 'Sign in' : 'Create an account';
   $('password').autocomplete = creatingAccount ? 'new-password' : 'current-password';
+  $('password').value = '';
+  $('confirm-password').value = '';
+  $('confirm-password-field').hidden = !creatingAccount;
+  $('confirm-password').disabled = !creatingAccount;
+  $('confirm-password').required = creatingAccount;
   errorAt('auth-error', '');
 }
 $('auth-switch').addEventListener('click', () => setAuthMode(!creatingAccount));
@@ -85,14 +90,21 @@ function arrow(value) {
 $('auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   errorAt('auth-error', '');
+  if (creatingAccount && $('password').value !== $('confirm-password').value) {
+    errorAt('auth-error', 'Passwords do not match. Enter the same password twice.');
+    $('confirm-password').focus();
+    return;
+  }
   $('auth-submit').disabled = true;
+  $('auth-switch').disabled = true;
   try {
     const credentials = {username: $('username').value, password: $('password').value};
     await api(creatingAccount ? '/register' : '/login', {method: 'POST', body: JSON.stringify(credentials)});
     $('password').value = '';
+    $('confirm-password').value = '';
     await showDashboard(await api('/me'));
   } catch (error) { errorAt('auth-error', error.message); }
-  finally { $('auth-submit').disabled = false; }
+  finally { $('auth-submit').disabled = false; $('auth-switch').disabled = false; }
 });
 
 $('logout').addEventListener('click', async () => {

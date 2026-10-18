@@ -55,7 +55,9 @@ class AppState:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         with self.db() as db:
             db.executescript("""
-                PRAGMA journal_mode=WAL;
+                -- Rollback journaling also supports a small, single-worker
+                -- hosted app without WAL's shared-memory requirement.
+                PRAGMA journal_mode=DELETE;
                 CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
                     salt TEXT NOT NULL, password TEXT NOT NULL

@@ -12,7 +12,7 @@ Requires Python 3.10 or later with SQLite and `hashlib.scrypt` support (standard
 python3 server.py --host 0.0.0.0 --port 8080
 ```
 
-On this computer open **http://localhost:8080**. Create an account with a username and password of at least 10 characters. There is no email verification or password reset in this small version; keep your password safe.
+On this computer open **http://localhost:8080**. Choose **Create an account**, enter a username, and enter the same password twice (at least 10 characters). Registration creates the account and signs you in. Later, use **Sign in** with that existing account. Sign-in never creates an account; an unknown username or incorrect password is rejected. There is no email verification or password reset in this small version; keep your password safe.
 
 Find this computer’s Wi-Fi IP address:
 
@@ -48,7 +48,11 @@ The live map uses self-hosted [Leaflet 1.9.4](https://leafletjs.com/) (BSD-2-Cla
 
 For a lost phone to report over mobile data, the backend needs a stable, internet-reachable **HTTPS** address. A local-only server cannot receive reports after the phone leaves the network.
 
-For hosting, use the production WSGI entry point. A provider such as PythonAnywhere can load `wsgi.application` directly; set `PHONELINK_PUBLIC_URL` and `PHONELINK_DB` in its WSGI configuration before importing it. The database must be on persistent private storage. It must not be under the public static directory.
+You do not need to own a physical server or leave your PC on. A hosting provider runs the backend and keeps its private database. Static HTML hosting alone cannot receive APK reports or run this Python API. A Google Maps API key does not provide hosting, accounts or location storage; the existing maps/directions need no Google key.
+
+For a small free project setup, see [FREE_HOSTING.md](FREE_HOSTING.md). It explains PythonAnywhere's free WSGI app, HTTPS, persistent files and monthly renewal. This is a pilot option with storage/locking limitations, not guaranteed unattended lost-phone recovery.
+
+For hosting, use the production WSGI entry point. Set `PHONELINK_PUBLIC_URL` and `PHONELINK_DB` before importing `wsgi.application`. The database must be on persistent private storage, outside any public static directory. Prefer local persistent disk. SQLite uses its default DELETE rollback journal mode; WAL is not enabled because it requires shared memory and is unsuitable for network filesystems. Rollback mode does not eliminate a host's filesystem-locking risks.
 
 For a server that runs your own processes, install the small hosting dependency and use Waitress behind your HTTPS reverse proxy:
 
