@@ -2,11 +2,15 @@
 
 **Result:** The tested web map, API, production server and recovery scenarios pass. This is ready for a real-device pilot, not a guarantee of uninterrupted lost-phone recovery. A physical Android test and a public HTTPS deployment test remain.
 
+Last retested: 19 October 2026 (Africa/Kampala).
+
 ## Verified results
 
 | Area | Result | Evidence |
 | --- | --- | --- |
-| API and access controls | PASS | 18 integration tests against real HTTP and SQLite |
+| API and access controls | PASS | 20 integration tests against real HTTP and SQLite |
+| Sign in from another device | PASS | Separate browser cookie jar signs in after the original signs out, receives the paired phone's fix and its next movement; simulated clients, not physical phones |
+| Concurrent location ordering | PASS | Forced two requests to read the same old row, then made the older report commit last; the newer location survives |
 | Real street map | PASS | Firefox loaded visible 256 px OpenStreetMap street tiles; no placeholder map or application demo mode |
 | Moving location | PASS | Two reports moved the existing marker and updated coordinates |
 | Accuracy circle | PASS | Map overlay and reported accuracy displayed |
@@ -15,9 +19,10 @@
 | Mobile layout | PASS | Pin remains centered after viewport resize; no horizontal page overflow |
 | Distance from the viewer | PASS | Known zero/one-degree/date-line distances; meters/km; updates after either device moves |
 | Viewer location handling | PASS | Permission denial, stale viewer fix, stop/clear, no browser storage and no viewer-location POSTs |
+| Directions and travel time link | PASS | Google Maps directions URL uses the latest destination and fresh viewer origin; stale/future/denied/stopped viewer origins omitted, canceled watch ignored, freshness rechecked on activation after a hidden-tab delay, no automatic external routing request |
 | Old/stopped location | PASS | Old fixes and stopped sharing are labeled; no old point is presented as a fresh fix |
 | Backend outage | PASS | Actual test server stopped; browser retained the last location with a warning and recovered after restart |
-| Concurrent traffic | PASS | 200 requests from 12 concurrent clients, zero HTTP errors; local p95 response time 43.4 ms |
+| Concurrent traffic | PASS | 200 requests from 12 concurrent clients, zero HTTP errors; local p95 response time 43.1 ms |
 | Unexpected process stop | PASS | Production server forcibly killed and restarted; accounts, sessions, phone credentials and committed locations survived |
 | Database backup/restore | PASS | Live SQLite backup, integrity check, private permissions, overwrite refusal and restored reporting credentials verified |
 | Production serving | PASS | Waitress served the API, map assets and APK; secure cookies, HEAD, health, private access and revocation checked |
@@ -25,9 +30,11 @@
 
 The concurrent-traffic result measures the backend on this computer. It is a small burst test, not a large-scale load test, endurance test, mobile network benchmark or hosting uptime measurement.
 
-## Issue found and fixed
+## Issues found and fixed
 
 Five-second polling was replacing the map's surrounding card. In Firefox this interrupted pending street tiles during zoom. The dashboard now reuses both the card and map in place. The browser test checks their identity, actual street tile loading, zoom, following and mobile centering. The full browser flow passed after this fix.
+
+Concurrent reports could both read an old timestamp and let the older report overwrite a newer fix. The database UPDATE now compares timestamps atomically. A regression test uses a barrier and an event to force the problematic order without timing sleeps; it fails against the old implementation and passes with the fix.
 
 ## Test data and real data
 
@@ -35,10 +42,13 @@ API, browser and hosting tests use separate temporary databases. Synthetic coord
 
 Street tiles are real OpenStreetMap data. Tile availability and detail depend on that external service and the viewer's internet connection. Account credentials and reporting tokens are not sent to the tile provider.
 
+Road distance and estimated travel time are shown **in Google Maps**, opened through its documented keyless directions URLs. The dashboard calculates straight-line distance only. Link construction, updates and privacy behavior were tested; an actual Google Maps route calculation/navigation on a physical viewing phone was not. Opening directions sends destination and any fresh viewer origin to Google; the dashboard makes no background routing requests. Reopen directions if the phone moves.
+
 ## Not yet verified
 
 - A physical Android installation, runtime permissions and an outdoor GPS fix.
 - The viewing device's real browser location permission and accuracy over HTTPS. Distance is a straight-line estimate; it is not route length.
+- Opening Google Maps directions on a physical phone, including local route availability and travel time for its chosen transport mode.
 - Accurate movement while carrying a real phone, with the screen locked for at least 10 minutes.
 - Actual Android battery restrictions, phone internet loss/recovery, notification Stop, force-stop and reboot behavior.
 - A real public host's HTTPS certificate, persistent disk, automatic restart, backups and limits.
@@ -52,9 +62,9 @@ The code and tests do not support locating an unprepared phone by IMEI. Location
 ```bash
 python3 -m unittest discover -s tests -v
 python3 tests/browser_smoke.py
+python3 android/build.py
 python3 -m pip install -r requirements-deploy.txt
 python3 tests/hosting_smoke.py
-python3 android/build.py
 ```
 
 The browser test requires Firefox and geckodriver. The Android build requires Java 21 and downloads official SDK tools on its first run. Browser screenshots in `dist/` show synthetic test locations; the real dashboard waits for the paired APK.

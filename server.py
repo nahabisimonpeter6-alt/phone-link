@@ -309,8 +309,10 @@ class Handler(BaseHTTPRequestHandler):
                 lat, lng, accuracy, stamp = values
                 if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= accuracy <= 1000000 and 0 < stamp <= now + 120):
                     raise APIError(400, "Location values are out of range. Check the phone's date and time.")
-                if row["located_at"] is None or stamp >= row["located_at"]:
-                    db.execute("UPDATE devices SET latitude=?,longitude=?,accuracy=?,located_at=? WHERE id=?", (lat, lng, accuracy, stamp, row["id"]))
+                # Compare inside the write itself: concurrent reports may have
+                # both read the same old row before either transaction starts.
+                db.execute("UPDATE devices SET latitude=?,longitude=?,accuracy=?,located_at=? WHERE id=? AND (located_at IS NULL OR located_at<=?)",
+                           (lat, lng, accuracy, stamp, row["id"], stamp))
             db.execute("UPDATE devices SET tracking=?,seen_at=?,battery=? WHERE id=?", (int(tracking), now, battery, row["id"]))
             return {"ok": True, "received_at": now}, 200, None
         user = self.user(db)

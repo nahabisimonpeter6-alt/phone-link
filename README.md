@@ -24,17 +24,19 @@ Use the Wi-Fi address, for example **http://192.168.1.10:8080**, on the phone. B
 
 ## Install and connect the Android APK
 
-The built APK is **dist/phonelink.apk**, also served at **http://localhost:8080/download/phonelink.apk**. Open the website using the computer’s Wi-Fi IP on your phone to download it. Allow installation from that browser when Android asks.
+Build the APK with `python3 android/build.py` first (see [Build the APK](#build-the-apk)). Build output is excluded from Git: when moving to a new host, build there or privately copy **dist/phonelink.apk** from your build computer to the same path on the host. The server serves it at **http://localhost:8080/download/phonelink.apk**. Open the website using the computer’s Wi-Fi IP on your phone to download it. Allow installation from that browser when Android asks.
 
 1. On the dashboard click **Connect a phone**, name it, and create a pairing code.
 2. In the APK enter the same server address and the pairing code. Codes are single-use and expire after 10 minutes. If you generated the code at `localhost`, replace the server address with the computer’s Wi-Fi IP when entering it in the APK.
 3. Tap **Connect phone**. Then tap **Start tracking**, allow location access (Precise is recommended) and notifications. Keep the phone’s Location setting on.
 4. Check the dashboard from another device. The street map shows a phone pin and an accuracy circle. It refreshes every 5 seconds; the APK attempts a report about every 15 seconds. New fixes move the same pin without resetting your zoom or reloading the whole map. Drag to explore; **Follow phone** recenters and resumes following. The intervals are best effort, subject to GPS, connectivity, Android power management and the phone manufacturer.
-5. **Open in Google Maps** opens the last received coordinates. The external Maps pin is a snapshot; reopen the link to see a newer position.
+5. **Open in Google Maps** opens the last received coordinates. **Route & travel time in Google Maps** opens directions to that position: Google Maps shows route distance and estimated travel time, and lets you choose walking or driving. No API key is needed for these [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started). The external destination is a snapshot; reopen directions if the phone moves. For an old/stopped fix the button explicitly says **last known position**.
 
 To see the distance from the device viewing the dashboard to a tracked phone, tap **Show my distance** and allow browser location access. The distance is an approximate **straight-line** measurement, not road/travel distance. It updates as either device moves, shows meters/kilometers and both locations' reported accuracy, and changes to **Distance to last known position** for an old/stopped phone fix. A viewer fix older than one minute is not used as a current position. **Stop distance** clears the viewer's position and stops its location watch. Signing out also clears it.
 
-The viewer's location stays in page memory: it is not uploaded, saved in the database or stored in browser storage. Browser location needs HTTPS (or localhost for desktop testing). Opening a plain `http://192.168...`/`http://10...` address is enough for the street map but cannot provide the viewing device's position; deploy HTTPS for phone-to-phone distance. GPS accuracy and internet availability still apply.
+The viewer's location stays in page memory: it is not uploaded to PhoneLink, saved in the database or stored in browser storage. Opening directions shares the phone's destination and, if enabled and fresh, the viewer's starting coordinates with Google Maps. Without a fresh viewer fix the link leaves the starting point for Google Maps to determine or ask for. The dashboard does not call a routing service automatically. Route length and travel time appear **in Google Maps**; the dashboard's own distance remains straight-line distance, with no invented travel time or traffic estimate.
+
+Browser location needs HTTPS (or localhost for desktop testing). Opening a plain `http://192.168...`/`http://10...` address is enough for the street map but cannot provide the viewing device's position; deploy HTTPS for phone-to-phone distance. Both devices need location access and internet; the tracked phone also needs the paired APK sharing. Location being on alone cannot locate an unpaired or stopped phone. GPS accuracy and internet availability still apply.
 
 Android **8.0+** is supported. Sharing runs in a location foreground service, with a visible notification and Stop action. The app requests no background-location permission: start it while the activity is visible, then the existing foreground service can continue while the screen is locked. After a reboot, force-stop, app removal, or an Android stop action, open the APK and start tracking again. Some manufacturers need an additional “Unrestricted” battery setting under Apps → PhoneLink → Battery for reliable screen-off operation.
 
@@ -88,13 +90,14 @@ The build compiles Java sources against Android API 35, creates DEX with `d8`, p
 ```bash
 python3 -m unittest discover -s tests -v
 python3 tests/browser_smoke.py
-python3 tests/hosting_smoke.py
 python3 android/build.py
+python3 -m pip install -r requirements-deploy.txt
+python3 tests/hosting_smoke.py
 ```
 
-The integration suite uses a real HTTP server and a temporary database to check sign-in, owner isolation, one-use/expired pairing, concurrent pairing, location validation, out-of-order fixes, offline timestamps, stop sharing, revocation, expired sessions, origin checks, rate limits and static assets.
+The integration suite uses a real HTTP server and a temporary database to check sign-in from another browser session after the original signs out, owner isolation, one-use/expired pairing, concurrent pairing, location validation, sequential and concurrent out-of-order fixes, offline timestamps, stop sharing, revocation, expired sessions, origin checks, rate limits and static assets.
 
-For the optional real-browser flow, install Firefox and [Mozilla geckodriver](https://github.com/mozilla/geckodriver/releases) in your PATH (or `.tools/geckodriver`), then run `python3 tests/browser_smoke.py`. It checks desktop/mobile rendering, registration/login, pairing, stale/live fixes, map marker movement, tile reuse, attribution, the accuracy circle, the Maps link, stopping and disconnection. Its synthetic coordinates use a temporary database; screenshots are saved under `dist/`.
+For the optional real-browser flow, install Firefox and [Mozilla geckodriver](https://github.com/mozilla/geckodriver/releases) in your PATH (or `.tools/geckodriver`), then run `python3 tests/browser_smoke.py`. It checks desktop/mobile rendering, registration/login, pairing, stale/live fixes, map marker movement, tile reuse, attribution, the accuracy circle, viewer/phone distance updates and Google Maps directions. It verifies that directions use the latest destination, omit stale/future/denied/stopped viewer origins, and make no automatic external routing request. Stopping and disconnection are covered too. Its synthetic coordinates use a temporary database; screenshots are saved under `dist/`.
 
 `hosting_smoke.py` needs the hosting dependency installed. It launches real Waitress processes on localhost with temporary databases, runs 200 concurrent-client requests, restarts the process, restores a backup and checks private access, reporting tokens, static map assets and APK downloads. It simulates the internal side of an HTTPS reverse proxy; it does not certify an external host's TLS or uptime. The browser test uses Firefox/geckodriver as described above, including a real backend outage and recovery.
 

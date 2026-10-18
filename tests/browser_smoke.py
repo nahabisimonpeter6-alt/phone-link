@@ -81,6 +81,9 @@ def main():
                 data=json.dumps(body).encode(), headers=headers)
             with urllib.request.urlopen(request, timeout=10) as response: return json.load(response)
 
+        def directions():
+            return script("const a=document.querySelector('.directions-link'); const url=new URL(a.href); return {origin:url.origin,path:url.pathname,params:Object.fromEntries(url.searchParams),text:a.textContent,rel:a.rel,target:a.target};")
+
         try:
             for _ in range(100):
                 try:
@@ -127,6 +130,12 @@ def main():
             assert script("return document.querySelector('.coordinates').textContent") == "0.34810, 32.58300"
             assert script("return document.querySelector('.follow-phone').getAttribute('aria-pressed')") == 'true'
             assert script("return document.querySelector('.phone-map svg path') !== null"), 'Accuracy circle is missing'
+            route = directions()
+            assert route['origin'] == 'https://www.google.com' and route['path'] == '/maps/dir/'
+            assert route['params'] == {'api': '1', 'destination': '0.3481,32.583'}, 'Directions must use latest phone fix, with no stale viewer origin'
+            assert route['target'] == '_blank' and 'noopener' in route['rel'] and 'noreferrer' in route['rel']
+            assert 'travel time' in route['text']
+            assert script("return ViewerDistance.directionsUrl({latitude:91,longitude:0})") is None
             # Known spherical distances test the calculation independently of
             # location permissions, including zero and crossing the date line.
             assert script("return ViewerDistance.distanceMetres(0,0,0,0)") == 0
@@ -135,9 +144,9 @@ def main():
             assert script("return ViewerDistance.distanceMetres(91,0,0,0)") is None
             # Use controlled browser geolocation callbacks so permission/error/
             # movement cases are reproducible without uploading the viewer fix.
-            script("""window.testClearWatches=0; window.testViewerPosts=[];
+            script("""window.testClearWatches=0; window.testViewerPosts=[]; window.testViewerFetches=[];
               window.originalTestFetch=window.fetch;
-              window.fetch=(url,options={})=>{if(options.method==='POST')testViewerPosts.push(options.body);return originalTestFetch(url,options)};
+              window.fetch=(url,options={})=>{testViewerFetches.push(String(url));if(options.method==='POST')testViewerPosts.push(options.body);return originalTestFetch(url,options)};
               Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
                 watchPosition:(success,error)=>{window.testViewerFix=success;window.testViewerError=error;return 77},
                 clearWatch:()=>window.testClearWatches++}});""")
@@ -145,21 +154,50 @@ def main():
             wait("document.querySelector('.distance-value')?.textContent === 'Locating you…'")
             script("testViewerFix({coords:{latitude:.3381,longitude:32.5830,accuracy:10},timestamp:Date.now()})")
             wait("document.querySelector('.distance-value')?.textContent === 'About 1.1 km'")
+            assert directions()['params']['origin'] == '0.3381,32.583'
+            # A hidden tab need not rerender when the viewer fix expires. Each
+            # normal way to open directions must recheck freshness at activation.
+            activation_checks = script("""const a=document.querySelector('.directions-link'); const realNow=window.Date.now;
+              try {
+                return ['click','auxclick','contextmenu'].map(type=>{
+                  window.Date.now=realNow;
+                  a.href=ViewerDistance.directionsUrl({latitude:.3481,longitude:32.583});
+                  const before=new URL(a.href).searchParams.get('origin');
+                  window.Date.now=()=>realNow()+61000;
+                  a.addEventListener(type,e=>e.preventDefault(),{once:true});
+                  a.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,button:type==='click'?0:1}));
+                  return {type,before,after:new URL(a.href).searchParams.get('origin')};
+                });
+              } finally { window.Date.now=realNow; }""")
+            assert all(check['before'] and check['after'] is None for check in activation_checks), f'Directions activation shared an expired viewer fix: {activation_checks}'
             script("testViewerFix({coords:{latitude:.3431,longitude:32.5830,accuracy:10},timestamp:Date.now()})")
             wait("document.querySelector('.distance-value')?.textContent === 'About 556 m'")
+            assert directions()['params']['origin'] == '0.3431,32.583', 'Directions retained an old viewer fix'
             api('/api/report', {'tracking': True, 'location': {'latitude': .3491, 'longitude': 32.5830, 'accuracy': 12, 'timestamp': time.time()}}, paired['device_token'])
             wait("document.querySelector('.distance-value')?.textContent === 'About 667 m'")
+            assert directions()['params']['destination'] == '0.3491,32.583', 'Directions retained an old destination'
             api('/api/report', {'tracking': True, 'location': {'latitude': .3481, 'longitude': 32.5830, 'accuracy': 12, 'timestamp': time.time()}}, paired['device_token'])
             wait("document.querySelector('.distance-value')?.textContent === 'About 556 m'")
             script("testViewerFix({coords:{latitude:.3431,longitude:32.5830,accuracy:10},timestamp:Date.now()-61000})")
             wait("document.querySelector('.distance-value')?.textContent.includes('Waiting for your current')")
+            assert 'origin' not in directions()['params'], 'Directions used a stale viewer fix'
+            script("testViewerFix({coords:{latitude:.3431,longitude:32.5830,accuracy:10},timestamp:Date.now()+60000})")
+            assert 'origin' not in directions()['params'], 'Directions used a future viewer fix'
             script("testViewerError({code:1})")
             wait("document.querySelector('#distance-status').textContent.includes('denied')")
             assert script("return document.querySelector('#distance-toggle').getAttribute('aria-pressed')") == 'false'
+            assert 'origin' not in directions()['params'], 'Denied location remained in directions'
+            script('window.testOldViewerFix=window.testViewerFix')
             click('#distance-toggle')
+            script("testOldViewerFix({coords:{latitude:2,longitude:33,accuracy:10},timestamp:Date.now()})")
+            assert 'origin' not in directions()['params'], 'Canceled watcher leaked an old origin'
+            script('testViewerError({code:3})')
+            wait("document.querySelector('#distance-status').textContent.includes('timed out')")
+            assert 'origin' not in directions()['params']
             script("testViewerFix({coords:{latitude:.3431,longitude:32.5830,accuracy:10},timestamp:Date.now()})")
             wait("document.querySelector('.distance-value')?.textContent === 'About 556 m'")
             assert script("return window.testViewerPosts.length") == 0, 'Viewer location triggered a POST'
+            assert script("return window.testViewerFetches.every(url=>url.startsWith('/api/'))"), 'Dashboard sent a route/location request to an external service'
             assert script("return Object.keys(localStorage).length + Object.keys(sessionStorage).length") == 0
             # Actual pointer dragging stops follow mode; the button restores it.
             point = script("const r=document.querySelector('.phone-map').getBoundingClientRect(); return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}")
@@ -185,8 +223,10 @@ def main():
             api("/api/report", {"tracking": False}, paired["device_token"])
             wait("document.querySelector('.badge')?.textContent === 'Sharing stopped'")
             assert script("return document.querySelector('.distance-label').textContent") == 'Distance to last known position'
+            assert 'last known position' in directions()['text'], 'Stopped phone directions were presented as current'
             click('#distance-toggle')
             wait("document.querySelector('.distance-value')?.textContent === 'Enable your location'")
+            assert 'origin' not in directions()['params'], 'Stop distance retained the viewer origin'
             assert script("return window.testClearWatches >= 2")
             assert script("return document.querySelector('.phone-map-pin').classList.contains('is-stale')")
             # Disconnect the actual test backend, verify the browser preserves
@@ -206,7 +246,7 @@ def main():
             wait("!document.querySelector('#auth-view').hidden")
             fill("#username", "browser-test"); fill("#password", "browser-test-password"); click("#auth-submit")
             wait("!document.querySelector('#dashboard').hidden")
-            print("PASS: Firefox real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, date-line/zero distances, stale viewer fix, permission denial, viewer privacy, stop/recovery, pairing and login.")
+            print("PASS: Firefox real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, Google Maps directions with current destination/fresh origin, stale/future viewer fixes, denial/timeout/canceled watcher, viewer privacy, stop/recovery, pairing and login.")
             print("Screenshots: dist/login.png, dist/dashboard.png, dist/dashboard-mobile.png (synthetic test data only)")
         finally:
             if session:

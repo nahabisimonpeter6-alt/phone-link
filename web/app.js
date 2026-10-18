@@ -223,6 +223,15 @@ function renderDevices() {
         const distance = ViewerDistance.describe(device, live);
         const box = element('div', 'distance-panel');
         box.append(element('p', 'detail-label distance-label', distance.label), element('p', 'distance-value', distance.value), element('p', 'distance-note', distance.note));
+        const directions = element('a', 'directions-link', live ? 'Route & travel time in Google Maps ↗' : 'Route to last known position in Google Maps ↗');
+        directions.href = ViewerDistance.directionsUrl(device);
+        directions.target = '_blank'; directions.rel = 'noopener noreferrer';
+        // Recheck at activation too: a tab may have been hidden long enough
+        // for the viewer fix to expire since the link was last rendered.
+        for (const event of ['click', 'auxclick', 'contextmenu']) {
+          directions.addEventListener(event, () => { directions.href = ViewerDistance.directionsUrl(device); });
+        }
+        box.append(directions, element('p', 'distance-note route-note', 'See route distance and estimated travel time; choose walking or driving in Google Maps. Opening directions shares the destination and your starting position, if enabled, with Google.'));
         card.append(box);
       }
     } else {

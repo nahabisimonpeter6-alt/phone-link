@@ -1,5 +1,6 @@
 """Integration tests against the real HTTP server and a temporary SQLite database."""
 import concurrent.futures
+from contextlib import contextmanager
 import http.cookiejar
 import json
 from pathlib import Path
@@ -7,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 
@@ -101,6 +103,23 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(guest.request("/api/register", {"username": "newuser", "password": "short"})[0], 400)
         self.assertEqual(guest.request("/api/register", {"username": "owner", "password": "different-password"})[0], 409)
 
+    def test_another_browser_can_sign_in_and_receive_phone_movement(self):
+        device, token = self.pair()
+        self.assertEqual(self.owner.request("/api/logout", {})[0], 200)
+        viewer = Client(self.base)  # A separate device has a separate cookie jar.
+        self.assertEqual(viewer.request("/api/devices")[0], 401)
+        self.assertEqual(viewer.request("/api/login", {
+            "username": "owner", "password": "correct-password"})[0], 200)
+        stamp = time.time() - 1
+        for latitude, timestamp in ((.3476, stamp), (.3481, stamp + 1)):
+            self.assertEqual(self.report(token, {"tracking": True, "location": {
+                "latitude": latitude, "longitude": 32.583, "accuracy": 8, "timestamp": timestamp}})[0], 200)
+            saved = self.devices(viewer)[0]
+            self.assertEqual(saved["id"], device["id"])
+            self.assertEqual(saved["latitude"], latitude)
+            self.assertEqual(saved["located_at"], timestamp)
+        self.assertEqual(self.owner.request("/api/devices")[0], 401)
+
     def test_entire_location_flow_and_stop(self):
         device, token = self.pair()
         stamp = time.time()
@@ -170,6 +189,63 @@ class TrackerTests(unittest.TestCase):
         for stamp, latitude in ((time.time(), 1), (time.time() - 3600, 2)):
             self.assertEqual(self.report(token, {"tracking": True, "location": {"latitude": latitude, "longitude": 32, "accuracy": 5, "timestamp": stamp}})[0], 200)
         self.assertEqual(self.devices()[0]["latitude"], 1)
+
+    def test_concurrent_old_fix_cannot_overwrite_new_fix(self):
+        _, token = self.pair()
+        baseline = time.time() - 10
+        older_stamp, newer_stamp = baseline + 1, baseline + 2
+        self.assertEqual(self.report(token, {"tracking": True, "location": {
+            "latitude": 0, "longitude": 32, "accuracy": 5, "timestamp": baseline}})[0], 200)
+        both_read = threading.Barrier(2)
+        newer_committed = threading.Event()
+        original_db = self.server.db
+
+        class ReadCursor:
+            def __init__(self, cursor):
+                self.cursor = cursor
+
+            def fetchone(self):
+                row = self.cursor.fetchone()
+                # Force both requests to read the original timestamp before
+                # either writes. The older request then writes strictly last.
+                both_read.wait(timeout=5)
+                return row
+
+        class CoordinatedDatabase:
+            def __init__(self, connection):
+                self.connection = connection
+
+            def execute(self, sql, parameters=()):
+                if sql.startswith("SELECT * FROM devices WHERE token_hash="):
+                    return ReadCursor(self.connection.execute(sql, parameters))
+                if sql.startswith("UPDATE devices SET latitude=") and parameters[3] == older_stamp:
+                    if not newer_committed.wait(timeout=5):
+                        raise AssertionError("Newer location report did not finish")
+                return self.connection.execute(sql, parameters)
+
+        @contextmanager
+        def coordinated_db():
+            with original_db() as connection:
+                yield CoordinatedDatabase(connection)
+
+        def submit(latitude, stamp):
+            try:
+                return self.report(token, {"tracking": True, "location": {
+                    "latitude": latitude, "longitude": 32, "accuracy": 5, "timestamp": stamp}})[0]
+            finally:
+                if stamp == newer_stamp:
+                    # A completed HTTP response follows the database commit.
+                    newer_committed.set()
+
+        with patch.object(self.server, "db", coordinated_db):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                older = pool.submit(submit, 1, older_stamp)
+                newer = pool.submit(submit, 2, newer_stamp)
+                self.assertEqual(newer.result(timeout=10), 200)
+                self.assertEqual(older.result(timeout=10), 200)
+        saved = self.devices()[0]
+        self.assertEqual(saved["latitude"], 2)
+        self.assertEqual(saved["located_at"], newer_stamp)
 
     def test_invalid_location_reports(self):
         _, token = self.pair()

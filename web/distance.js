@@ -79,10 +79,25 @@ window.ViewerDistance = (() => {
     return 6371008.8 * 2 * Math.asin(Math.sqrt(Math.max(0, Math.min(1, a))));
   }
 
+  function currentPosition() {
+    if (!position || Date.now() - position.timestamp > MAX_AGE || position.timestamp > Date.now() + 5000) return null;
+    return position;
+  }
+
+  function directionsUrl(device) {
+    if (!validPoint(device.latitude, device.longitude)) return null;
+    const query = new URLSearchParams({api: '1', destination: `${device.latitude},${device.longitude}`});
+    const viewer = currentPosition();
+    // Opening the link shares these coordinates with Google Maps. There is no
+    // route-service request while viewing or refreshing the dashboard.
+    if (viewer) query.set('origin', `${viewer.latitude},${viewer.longitude}`);
+    return `https://www.google.com/maps/dir/?${query}`;
+  }
+
   function describe(device, live) {
     const label = live ? 'Distance from you' : 'Distance to last known position';
     if (!position) return {label, value: state === 'waiting' ? 'Locating you…' : state === 'error' ? 'Your location unavailable' : 'Enable your location', note: state === 'idle' ? 'Tap Show my distance above. Distance uses both devices’ locations.' : message};
-    if (Date.now() - position.timestamp > MAX_AGE || position.timestamp > Date.now() + 5000) {
+    if (!currentPosition()) {
       return {label, value: 'Waiting for your current location', note: 'Your last location is too old to calculate a current distance.'};
     }
     const metres = distanceMetres(position.latitude, position.longitude, device.latitude, device.longitude);
@@ -92,5 +107,5 @@ window.ViewerDistance = (() => {
   }
 
   button.addEventListener('click', () => enabled ? stop() : start());
-  return {describe, distanceMetres, stop};
+  return {describe, directionsUrl, distanceMetres, stop};
 })();
