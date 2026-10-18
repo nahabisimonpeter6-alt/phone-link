@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183f35">
+  <meta name="description" content="A private home for your Android phone’s latest location.">
+  <title>PhoneLink · Find your way back</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
+  <script src="/maps.js" defer></script>
+  <script src="/distance.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="/" aria-label="PhoneLink home"><img src="/icon.svg" width="36" height="36" alt=""><span>PhoneLink<span class="brand-dot">.</span></span></a>
+    <div class="header-right"><span class="small-note">A little peace of mind.</span><button id="logout" class="text-button" hidden>Sign out</button></div>
+  </header>
+
+  <main>
+    <section id="auth-view" class="auth-layout" hidden>
+      <div class="intro">
+        <p class="eyebrow"><span class="mini-dot"></span> YOUR PHONE, CONNECTED</p>
+        <h1>Find your<br>way back<span class="green-dot">.</span></h1>
+        <p class="intro-copy">A simple place to find your phone’s latest location. Connect it once. Check in when you need to.</p>
+        <div class="phone-art" aria-hidden="true">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="route-dot dot-one"></div><div class="route-dot dot-two"></div>
+          <div class="phone-outline"><div class="phone-speaker"></div><div class="pin-art"><span></span></div><div class="art-label">Right here.</div><div class="phone-home"></div></div>
+          <div class="art-tag"><span class="mini-dot"></span> A connection that counts</div>
+        </div>
+      </div>
+      <div class="auth-card">
+        <span class="section-number">01 / GET CONNECTED</span>
+        <h2 id="auth-title">Welcome back.</h2>
+        <p id="auth-description" class="muted">Sign in to check on your phone.</p>
+        <form id="auth-form">
+          <label for="username">Username</label>
+          <input id="username" name="username" autocomplete="username" minlength="3" maxlength="40" pattern="[A-Za-z0-9_.\-]{3,40}" placeholder="Your username" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" placeholder="At least 10 characters" required>
+          <p id="auth-error" class="error" role="alert" hidden></p>
+          <button id="auth-submit" class="button primary full" type="submit">Sign in <span aria-hidden="true">↗</span></button>
+        </form>
+        <p class="switch-copy"><span id="auth-switch-label">First time here?</span> <button id="auth-switch" class="inline-button">Create an account</button></p>
+        <div class="privacy-note"><span aria-hidden="true">⌁</span><p>Your location is private to your account.<br>Only phones you connect can report here.</p></div>
+      </div>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="dashboard-heading">
+        <div><p class="eyebrow">YOUR PERSONAL LOCATOR</p><h1>Your phone.<br class="mobile-break"> Within reach<span class="green-dot">.</span></h1><p class="muted">The latest location, without the guesswork.</p></div>
+        <button id="add-phone" class="button primary">Connect a phone <span aria-hidden="true">＋</span></button>
+      </div>
+      <div class="viewer-distance-strip"><button id="distance-toggle" class="button secondary" type="button" aria-pressed="false">Show my distance</button><p id="distance-status" role="status">Use your location for an approximate straight-line distance. It stays in this browser.</p></div>
+      <div class="dashboard-meta"><span id="connection-status"><span class="status-dot"></span> Connecting to your dashboard</span><span id="account-label"></span></div>
+      <p id="dashboard-error" class="banner error" role="alert" hidden></p>
+      <div id="devices" class="devices" aria-live="polite"></div>
+      <div id="empty-state" class="empty-card" hidden>
+        <div class="empty-illustration" aria-hidden="true"><div class="empty-ring"></div><img src="/icon.svg" alt="" width="64" height="64"></div>
+        <p class="eyebrow">READY WHEN YOU ARE</p><h2>Your phone belongs here.</h2>
+        <p>Connect your Android phone to start receiving its location.<br>You’ll need the phone with you for this first step.</p>
+        <button id="empty-add" class="button primary">Connect my phone <span aria-hidden="true">↗</span></button>
+      </div>
+      <div class="setup-strip">
+        <div class="setup-heading"><p class="eyebrow">A SIMPLE SETUP</p><h3>Three steps.<br>One less worry.</h3></div>
+        <div class="setup-step"><span>01</span><div><h4>Install the Android app</h4><p>Open this website on your phone and <a href="/download/phonelink.apk">download the APK</a>.</p></div></div>
+        <div class="setup-step"><span>02</span><div><h4>Connect your phone</h4><p>Create a pairing code here. Enter it and this server’s address in the app.</p></div></div>
+        <div class="setup-step"><span>03</span><div><h4>Start location sharing</h4><p>Allow location access and tap Start tracking. Keep internet and location enabled.</p></div></div>
+      </div>
+      <div class="footnote"><span aria-hidden="true">ⓘ</span><p>A phone must be connected before it goes missing. When updates stop, you’ll see its last known location and time. Google Maps opens the latest received position.</p></div>
+    </section>
+    <div id="loading" class="loading">Connecting…</div>
+  </main>
+
+  <footer><span>PhoneLink · Built to keep things simple.</span><span>Your location. Your account.</span></footer>
+
+  <dialog id="pair-dialog" aria-labelledby="pair-title">
+    <div class="dialog-heading"><p class="eyebrow">MAKE THE CONNECTION</p><button id="close-pair" class="close-button" aria-label="Close pairing dialog">×</button></div>
+    <h2 id="pair-title">Connect your phone.</h2>
+    <form id="pair-form"><label for="phone-name">Give your phone a name</label><input id="phone-name" maxlength="50" placeholder="e.g. My Samsung" required><p id="pair-error" class="error" role="alert" hidden></p><button class="button primary full" id="create-code">Create pairing code <span aria-hidden="true">↗</span></button></form>
+    <div id="pair-details" hidden>
+      <p class="muted">In the Android app, enter these two details.</p>
+      <label for="server-address">Server address <span class="label-note">Use your computer’s Wi-Fi IP for a local server.</span></label>
+      <div class="copy-row"><input id="server-address" readonly><button class="copy-button" data-copy="server-address" aria-label="Copy server address">Copy</button></div>
+      <label for="pair-code">Pairing code</label><div class="copy-row"><input id="pair-code" class="code" readonly><button class="copy-button" data-copy="pair-code" aria-label="Copy pairing code">Copy</button></div>
+      <p id="pair-expiry" class="muted small"></p>
+      <p class="pair-tip">Then tap <strong>Connect phone</strong> in the app, allow location access, and tap <strong>Start tracking</strong>.</p>
+      <a class="button secondary full" href="/download/phonelink.apk">Download Android APK <span aria-hidden="true">↓</span></a>
+    </div>
+  </dialog>
+  <dialog id="disconnect-dialog" aria-labelledby="disconnect-title"><h2 id="disconnect-title">Disconnect this phone?</h2><p class="muted">Its saved location will be deleted, and the app will lose access. You can pair it again later.</p><div class="dialog-actions"><button id="cancel-disconnect" class="button secondary">Keep phone</button><button id="confirm-disconnect" class="button danger">Disconnect</button></div><p id="disconnect-error" class="error" role="alert" hidden></p></dialog>
+</body>
+</html>
