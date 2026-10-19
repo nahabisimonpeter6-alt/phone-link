@@ -5,8 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
@@ -17,24 +15,7 @@ final class ApiClient {
     }
 
     static String normalizeServer(String value) throws Exception {
-        String text = value.trim().replaceAll("/+$", "");
-        URI uri = new URI(text);
-        if (uri.getHost() == null || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
-                || (uri.getPath() != null && !uri.getPath().isEmpty())) {
-            throw new Exception("Enter only the server address, for example https://phone.example.com or http://192.168.1.10:8080.");
-        }
-        String scheme = uri.getScheme();
-        if (!"https".equalsIgnoreCase(scheme)) {
-            if (!"http".equalsIgnoreCase(scheme)) throw new Exception("The server address must start with https:// (or http:// for local Wi-Fi).");
-            String host = uri.getHost();
-            boolean local = host.equals("localhost") || host.equals("[::1]") || host.equals("::1");
-            if (host.matches("[0-9.]+")) {
-                InetAddress address = InetAddress.getByName(host);
-                local = address.isSiteLocalAddress() || address.isLoopbackAddress();
-            }
-            if (!local) throw new Exception("Use HTTPS outside your local Wi-Fi. Plain HTTP is allowed only for local/private IP addresses.");
-        }
-        return text;
+        return ServerAddress.normalize(value);
     }
 
     static JSONObject post(String server, String path, String token, JSONObject body) throws Exception {

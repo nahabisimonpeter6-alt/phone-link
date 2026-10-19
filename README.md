@@ -27,7 +27,7 @@ Use the Wi-Fi address, for example **http://192.168.1.10:8080**, on the phone. B
 Build the APK with `python3 android/build.py` first (see [Build the APK](#build-the-apk)). Build output is excluded from Git: when moving to a new host, build there or privately copy **dist/phonelink.apk** from your build computer to the same path on the host. The server serves it at **http://localhost:8080/download/phonelink.apk**. Open the website using the computer’s Wi-Fi IP on your phone to download it. Allow installation from that browser when Android asks.
 
 1. On the dashboard click **Connect a phone**, name it, and create a pairing code.
-2. In the APK enter the same server address and the pairing code. Codes are single-use and expire after 10 minutes. If you generated the code at `localhost`, replace the server address with the computer’s Wi-Fi IP when entering it in the APK.
+2. In the APK enter the server address and the pairing code. Codes are single-use and expire after 10 minutes. Use your hosted HTTPS address or, for local testing, your computer’s Wi-Fi IP. A dashboard opened at `localhost` warns you and disables copying that address because it cannot reach the computer from a physical phone. Open the dashboard using the Wi-Fi IP before copying its address.
 3. Tap **Connect phone**. Then tap **Start tracking**, allow location access (Precise is recommended) and notifications. Keep the phone’s Location setting on.
 4. Check the dashboard from another device. The street map shows a phone pin and an accuracy circle. It refreshes every 5 seconds; the APK attempts a report about every 15 seconds. New fixes move the same pin without resetting your zoom or reloading the whole map. Drag to explore; **Follow phone** recenters and resumes following. The intervals are best effort, subject to GPS, connectivity, Android power management and the phone manufacturer.
 5. **Open in Google Maps** opens the last received coordinates. **Route & travel time in Google Maps** opens directions to that position: Google Maps shows route distance and estimated travel time, and lets you choose walking or driving. No API key is needed for these [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started). The external destination is a snapshot; reopen directions if the phone moves. For an old/stopped fix the button explicitly says **last known position**.
@@ -75,9 +75,17 @@ python3 backup.py
 
 The command uses the configured `PHONELINK_DB`, or the default local database, and saves a private, integrity-checked copy under `data/backups/`. Existing backups are not overwritten. Download backups to a separate private location; a backup kept only on the host cannot protect against losing the whole host. To restore, stop the server and set `PHONELINK_DB` to a copy of a verified backup. Never publish database backups. For a small deployment use one application process; multiple server processes would have separate in-memory rate limits.
 
-You can also use a temporary HTTPS tunnel for a demonstration, then pair using its HTTPS address. A changed tunnel URL requires re-pairing. Never send account passwords or location reports over public plain HTTP; the APK accepts HTTP only for localhost/private IPv4 addresses. Local HTTP is for a trusted test Wi-Fi. The Android manifest permits cleartext for this local setup, while the client rejects public HTTP destinations and does not follow redirects with credentials.
+You can also use a temporary HTTPS tunnel for a demonstration, then pair using its HTTPS address. A changed tunnel URL requires re-pairing. Never send account passwords or location reports over public plain HTTP; the APK accepts HTTP only for private IPv4 addresses. Local HTTP is for a trusted test Wi-Fi. The Android manifest permits cleartext for this local setup, while the client rejects public HTTP destinations and does not follow redirects with credentials.
 
 The software has no service charges or API keys. Continuous remote availability still requires an always-on host, internet, power and phone data. Self-host on equipment you already have, or use a provider’s free allowance after checking its current limits. No third-party free hosting or uninterrupted recovery is guaranteed. There is no pretend live-location demo in the dashboard; it waits for real reports.
+
+## If the phone cannot connect
+
+`localhost`, `127.0.0.1` and `0.0.0.0` are not the computer's usable address on a phone. On the phone, open the **same server address in its browser first**. For local testing, use `http://COMPUTERS_WIFI_IP:8080`, keep the PC server running with `--host 0.0.0.0`, and put both devices on the same Wi-Fi. Find the PC address with `hostname -I`. Some guest networks isolate devices. A local address cannot work after the PC shuts down or the phone leaves that network.
+
+For hosting, use your actual `https://YOUR_USERNAME.pythonanywhere.com` address (or the exact EU address shown by the host). Check `/api/health` displays `{"ok": true}` before pairing. If it fails, the hosting setup needs fixing; a different map key cannot make the backend reachable. See [FREE_HOSTING.md](FREE_HOSTING.md).
+
+An old APK may show **“Illegal character in authority at index 7”** when a hidden space is pasted after `http://`. APK **1.0.1** gives clear address errors, trims surrounding Unicode spaces, and rejects spaces inside the address, Markdown link text, loopback addresses and invalid ports. Enter only the URL, with no brackets or spaces. Install the updated APK from `/download/phonelink.apk`; if hosting separately, replace the host's old APK with the new build. Then use a fresh pairing code.
 
 ## Build the APK
 
@@ -93,6 +101,7 @@ The build compiles Java sources against Android API 35, creates DEX with `d8`, p
 
 ```bash
 python3 -m unittest discover -s tests -v
+python3 tests/android_address_smoke.py
 python3 tests/browser_smoke.py
 python3 android/build.py
 python3 -m pip install -r requirements-deploy.txt
@@ -100,6 +109,8 @@ python3 tests/hosting_smoke.py
 ```
 
 The integration suite uses a real HTTP server and a temporary database to check sign-in from another browser session after the original signs out, owner isolation, one-use/expired pairing, concurrent pairing, location validation, sequential and concurrent out-of-order fixes, offline timestamps, stop sharing, revocation, expired sessions, origin checks, rate limits and static assets.
+
+`android_address_smoke.py` compiles and runs the APK's actual Java address normalizer with `javac`/`java`. It checks Unicode clipboard spaces, malformed URLs, phone loopback/unspecified destinations, ports, private HTTP and hosted HTTPS without an Android device or network lookups.
 
 For the optional real-browser flow, install Firefox and [Mozilla geckodriver](https://github.com/mozilla/geckodriver/releases) in your PATH (or `.tools/geckodriver`), then run `python3 tests/browser_smoke.py`. It checks desktop/mobile rendering, registration/login, pairing, stale/live fixes, map marker movement, tile reuse, attribution, the accuracy circle, viewer/phone distance updates and Google Maps directions. It verifies that directions use the latest destination, omit stale/future/denied/stopped viewer origins, and make no automatic external routing request. Stopping and disconnection are covered too. Its synthetic coordinates use a temporary database; screenshots are saved under `dist/`.
 

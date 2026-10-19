@@ -122,6 +122,13 @@ def main():
             wait("!document.querySelector('#dashboard').hidden && !document.querySelector('#empty-state').hidden")
             click("#add-phone"); fill("#phone-name", "Test Android <safe>"); click("#create-code")
             wait("!document.querySelector('#pair-details').hidden")
+            assert script("return document.querySelector('#server-address').value") == '', 'Localhost address was offered to a physical phone'
+            assert script("return document.querySelector('#copy-server-address').disabled"), 'Localhost copy was enabled'
+            assert script("return document.querySelector('#server-address-note').textContent.includes('Localhost on a phone')")
+            script("showPairServerAddress('https://tracker.example.test')")
+            assert script("return document.querySelector('#server-address').value") == 'https://tracker.example.test'
+            assert not script("return document.querySelector('#copy-server-address').disabled"), 'Hosted address could not be copied'
+            script("showPairServerAddress(location.origin)")
             code = script("return document.querySelector('#pair-code').value")
             paired = api("/api/pair", {"code": code})
             api("/api/report", {"tracking": True,
@@ -263,7 +270,7 @@ def main():
             wait("!document.querySelector('#auth-view').hidden")
             fill("#username", "browser-test"); fill("#password", "browser-test-password"); click("#auth-submit")
             wait("!document.querySelector('#dashboard').hidden")
-            print("PASS: Firefox unknown-account login rejection, explicit registration/password confirmation, real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, Google Maps directions with current destination/fresh origin, stale/future viewer fixes, denial/timeout/canceled watcher, viewer privacy, stop/recovery, pairing and login.")
+            print("PASS: Firefox unknown-account login rejection, explicit registration/password confirmation, localhost pairing guard/hosted address, real map, zoom, movement, accuracy, mobile layout, viewer/phone distance updates, Google Maps directions with current destination/fresh origin, stale/future viewer fixes, denial/timeout/canceled watcher, viewer privacy, stop/recovery, pairing and login.")
             print("Screenshots: dist/login.png, dist/dashboard.png, dist/dashboard-mobile.png (synthetic test data only)")
         finally:
             if session:

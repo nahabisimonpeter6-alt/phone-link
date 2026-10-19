@@ -85,8 +85,8 @@
     <form id="pair-form"><label for="phone-name">Give your phone a name</label><input id="phone-name" maxlength="50" placeholder="e.g. My Samsung" required><p id="pair-error" class="error" role="alert" hidden></p><button class="button primary full" id="create-code">Create pairing code <span aria-hidden="true">↗</span></button></form>
     <div id="pair-details" hidden>
       <p class="muted">In the Android app, enter these two details.</p>
-      <label for="server-address">Server address <span class="label-note">Use your computer’s Wi-Fi IP for a local server.</span></label>
-      <div class="copy-row"><input id="server-address" readonly><button class="copy-button" data-copy="server-address" aria-label="Copy server address">Copy</button></div>
+      <label for="server-address">Server address <span id="server-address-note" class="label-note">Use your hosted HTTPS address or the computer’s Wi-Fi IP.</span></label>
+      <div class="copy-row"><input id="server-address" readonly><button id="copy-server-address" class="copy-button" data-copy="server-address" aria-label="Copy server address">Copy</button></div>
       <label for="pair-code">Pairing code</label><div class="copy-row"><input id="pair-code" class="code" readonly><button class="copy-button" data-copy="pair-code" aria-label="Copy pairing code">Copy</button></div>
       <p id="pair-expiry" class="muted small"></p>
       <p class="pair-tip">Then tap <strong>Connect phone</strong> in the app, allow location access, and tap <strong>Start tracking</strong>.</p>

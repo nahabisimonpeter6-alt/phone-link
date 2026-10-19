@@ -41,6 +41,8 @@ This is suitable for trying a small personal project. PythonAnywhere offers SQLi
 7. Enable [Force HTTPS](https://help.pythonanywhere.com/pages/ForcingHTTPS/) on Web, then **Reload** the app. Leave PythonAnywhere's static-file mapping table empty; PhoneLink serves only its allowed assets. Never map your home folder or database directory to a public URL. You do not run `server.py` in a console: PythonAnywhere runs `wsgi.application` for you.
 8. Open `https://YOUR_WEBSITE/api/health` and check it shows `{"ok": true}`. Open the homepage, create an account, and download the APK through the website. Pair the phone using the new **HTTPS** address and a new code, then start sharing. A phone paired to your PC's old address must be re-paired to this host.
 
+In the APK, paste only that website address. Do not enter `localhost:8080`: on a physical phone that points to the phone, not to PythonAnywhere or your PC. Open the exact HTTPS address in the phone's browser to check it before pairing. If installing APK 1.0.1 to fix address validation, upload the new APK to the host's `dist/` folder too; updating the source ZIP alone does not replace the binary.
+
 ## Check before relying on it
 
 With the computer switched off, view the hosted site from another phone. Sign in, tap **Show my distance**, allow browser location access and confirm new phone reports move the marker. Test the tracked phone over mobile data, screen locked, and after temporary network loss. Open **Route & travel time in Google Maps** for route distance and estimated travel time. Directions capture the latest received destination; reopen them if the phone moves.

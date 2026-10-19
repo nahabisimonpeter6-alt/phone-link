@@ -11,6 +11,8 @@ Last retested: 19 October 2026 (Africa/Kampala).
 | API and access controls | PASS | 22 integration tests against real HTTP and SQLite |
 | Account creation required | PASS | Unknown-account/wrong-password login rejects access, issues no session cookie and leaves users/sessions unchanged; only explicit registration creates the account |
 | Sign-in page | PASS | Clear existing-account instructions, registration password confirmation, mismatched passwords rejected before account creation, passwords cleared when switching modes |
+| Android server address | PASS | 83 Java checks cover the reported hidden-space error, Unicode clipboard boundaries, malformed URLs, loopback/unspecified addresses, ports, valid private HTTP and hosted HTTPS |
+| Pairing address shown on the web | PASS | Localhost address is not offered for copying to a physical phone; a hosted HTTPS address remains copyable |
 | Sign in from another device | PASS | Separate browser cookie jar signs in after the original signs out, receives the paired phone's fix and its next movement; simulated clients, not physical phones |
 | Concurrent location ordering | PASS | Forced two requests to read the same old row, then made the older report commit last; the newer location survives |
 | Real street map | PASS | Firefox loaded visible 256 px OpenStreetMap street tiles; no placeholder map or application demo mode |
@@ -29,7 +31,7 @@ Last retested: 19 October 2026 (Africa/Kampala).
 | Existing database upgrade | PASS | Legacy WAL database reopened with DELETE journaling; integrity, original account/session, paired token and location survive; login and new reports still work |
 | Database backup/restore | PASS | Live SQLite backup, integrity check, private permissions, overwrite refusal and restored reporting credentials verified |
 | Production serving | PASS | Waitress served the API, map assets and APK; secure cookies, HEAD, health, private access and revocation checked |
-| Android package | PASS | Java compiled against API 35; APK archive integrity and v2/v3 signatures verified; Android 8.0+ manifest checked |
+| Android package | PASS | APK 1.0.1/versionCode 2 compiled against API 35; archive integrity, v2/v3 signatures and downloaded APK bytes verified; Android 8.0+ manifest checked |
 
 The concurrent-traffic result measures the backend on this computer. It is a small burst test, not a large-scale load test, endurance test, mobile network benchmark or hosting uptime measurement.
 
@@ -40,6 +42,8 @@ The free-hosting guide targets a small PythonAnywhere project. SQLite now uses D
 Five-second polling was replacing the map's surrounding card. In Firefox this interrupted pending street tiles during zoom. The dashboard now reuses both the card and map in place. The browser test checks their identity, actual street tile loading, zoom, following and mobile centering. The full browser flow passed after this fix.
 
 Concurrent reports could both read an old timestamp and let the older report overwrite a newer fix. The database UPDATE now compares timestamps atomically. A regression test uses a barrier and an event to force the problematic order without timing sleeps; it fails against the old implementation and passes with the fix.
+
+Pasting a nonbreaking space after `http://` reproduced the reported Java “Illegal character in authority at index 7” error. The APK now trims surrounding Unicode clipboard spaces, rejects internal spaces and malformed origins with clear messages, and explains why localhost/loopback cannot point to a PC from a physical phone. No hostname DNS lookup is used during address validation. The dashboard also prevents copying its own localhost address as a phone server address. The rebuilt APK is signed with the existing development key for an in-place update; real-device installation remains unverified.
 
 ## Test data and real data
 
@@ -66,6 +70,7 @@ The code and tests do not support locating an unprepared phone by IMEI. Location
 
 ```bash
 python3 -m unittest discover -s tests -v
+python3 tests/android_address_smoke.py
 python3 tests/browser_smoke.py
 python3 android/build.py
 python3 -m pip install -r requirements-deploy.txt
@@ -74,6 +79,6 @@ python3 tests/hosting_smoke.py
 
 The browser test requires Firefox and geckodriver. The Android build requires Java 21 and downloads official SDK tools on its first run. Browser screenshots in `dist/` show synthetic test locations; the real dashboard waits for the paired APK.
 
-APK: `dist/phonelink.apk`, 25,126 bytes.
+APK: `dist/phonelink.apk`, version **1.0.1** (versionCode **2**), 29,222 bytes.
 
-SHA-256: `5f556481f14a618fa87a6bac6e5e8154939bf83a8d056d10a06a9d6b98fcff4d`.
+SHA-256: `59e32a66642004dd6a45bf9dabf7e6cc465d80004c084390c727b495a856d33b`.

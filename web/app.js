@@ -126,6 +126,17 @@ $('add-phone').addEventListener('click', openPair);
 $('empty-add').addEventListener('click', openPair);
 $('close-pair').addEventListener('click', () => $('pair-dialog').close());
 
+function showPairServerAddress(address) {
+  const host = new URL(address).hostname;
+  const localOnly = host === 'localhost' || host.endsWith('.localhost') || /^127\./.test(host) || ['0.0.0.0', '[::1]', '[::]'].includes(host);
+  $('server-address').value = localOnly ? '' : address;
+  $('server-address').placeholder = localOnly ? 'Use your computer’s Wi-Fi IP or hosted HTTPS address' : '';
+  $('copy-server-address').disabled = localOnly;
+  $('server-address-note').textContent = localOnly
+    ? 'This page was opened on this computer only. Localhost on a phone points to the phone. Open this dashboard using your computer’s Wi-Fi IP (same Wi-Fi) or your hosted HTTPS address before copying the server address.'
+    : 'Enter this exact address in the Android app. For a local Wi-Fi address, keep both devices on the same Wi-Fi and the computer’s server running.';
+}
+
 $('pair-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   $('create-code').disabled = true;
@@ -134,7 +145,7 @@ $('pair-form').addEventListener('submit', async (event) => {
     activePair = await api('/devices', {method: 'POST', body: JSON.stringify({name: $('phone-name').value})});
     $('pair-form').hidden = true;
     $('pair-details').hidden = false;
-    $('server-address').value = activePair.server_url;
+    showPairServerAddress(activePair.server_url);
     $('pair-code').value = activePair.code.match(/.{1,4}/g).join('-');
     updatePairTime();
     await refresh();

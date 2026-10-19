@@ -114,9 +114,9 @@ public class MainActivity extends Activity {
     private void renderPair() {
         error.setText(prefs.getString("last_error", ""));
         add(text("Server address", 12, GREEN, true), 32);
-        serverField = input("http://192.168.1.10:8080", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        serverField = input("https://yourname.pythonanywhere.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         serverField.setText(prefs.getString("server", "")); add(serverField, 9);
-        add(text("For local setup, use your computer’s Wi-Fi IP. For access away from home, use your server’s HTTPS address.", 11, MUTED, false), 8);
+        add(text("Enter the hosted website’s HTTPS address. For local testing, use your computer’s Wi-Fi IP, such as http://192.168.1.10:8080, on the same Wi-Fi. Localhost points to this phone and will not reach your computer. Paste only the address, without spaces or link text.", 11, MUTED, false), 8);
         add(text("Pairing code", 12, GREEN, true), 24);
         codeField = input("ABCD-EFGH-JKLM", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         add(codeField, 9);
@@ -128,6 +128,7 @@ public class MainActivity extends Activity {
         final String address;
         try { address = ApiClient.normalizeServer(serverField.getText().toString()); }
         catch (Exception ex) { error.setText(ex.getMessage()); return; }
+        serverField.setText(address);
         final String code = codeField.getText().toString().trim();
         if (code.isEmpty()) { error.setText("Enter the pairing code from your dashboard."); return; }
         connect.setEnabled(false); error.setText("Connecting…");
@@ -143,7 +144,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     connect.setEnabled(true);
-                    error.setText(ex instanceof ApiClient.ApiException ? ex.getMessage() : "Cannot reach the server. Check its address, that it is running, and that both devices are on the same Wi-Fi for local setup.");
+                    error.setText(ex instanceof ApiClient.ApiException ? ex.getMessage() : "Cannot reach the server. Open the same address in this phone’s browser first. For local testing, keep the computer’s server running and both devices on the same Wi-Fi. For hosting, check that the HTTPS website is online.");
                 });
             }
         });
