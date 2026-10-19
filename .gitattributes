@@ -1,2 +1,3 @@
 * text=auto eol=lf
 web/vendor/** -text -whitespace linguist-vendored
+deploy/phonelink-nahabi.zip -text -diff linguist-generated

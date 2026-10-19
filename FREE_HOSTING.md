@@ -12,6 +12,8 @@ This is suitable for trying a small personal project. PythonAnywhere offers SQLi
 
 ## Put the project online
 
+For the account **nahabi**, use the prepared [account-specific instructions](deploy/NAHABI_SETUP.md) and [WSGI configuration](deploy/pythonanywhere_nahabi_wsgi.py). The downloadable `deploy/phonelink-nahabi.zip` also includes the APK, so it can be uploaded as one package.
+
 1. Create your free account at PythonAnywhere. Note the exact HTTPS website address shown on its **Web** page. EU accounts use the EU domain shown there.
 2. While signed into GitHub as the repository owner, open [phone-link](https://github.com/nahabisimonpeter6-alt/phone-link), choose **Code → Download ZIP**, and upload the ZIP with PythonAnywhere's **Files** page. The repository is private; do not make it public or paste GitHub credentials into a command.
 3. Open a PythonAnywhere Bash console and extract the ZIP in your home directory. For the usual downloaded filename:

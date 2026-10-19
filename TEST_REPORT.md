@@ -32,10 +32,13 @@ Last retested: 19 October 2026 (Africa/Kampala).
 | Database backup/restore | PASS | Live SQLite backup, integrity check, private permissions, overwrite refusal and restored reporting credentials verified |
 | Production serving | PASS | Waitress served the API, map assets and APK; secure cookies, HEAD, health, private access and revocation checked |
 | Android package | PASS | APK 1.0.1/versionCode 2 compiled against API 35; archive integrity, v2/v3 signatures and downloaded APK bytes verified; Android 8.0+ manifest checked |
+| Upload package for nahabi | PASS | 37 source/configuration/asset files including the signed APK; no private data or keys; exact account configuration exercised through a fresh WSGI process using temporary paths |
 
 The concurrent-traffic result measures the backend on this computer. It is a small burst test, not a large-scale load test, endurance test, mobile network benchmark or hosting uptime measurement.
 
 The free-hosting guide targets a small PythonAnywhere project. SQLite now uses DELETE rollback journaling instead of WAL for network-filesystem compatibility. Local checks do not verify PythonAnywhere's actual storage locks, speed, expiry renewal or deployment; these remain real-host checks. The guide describes these limits and does not claim a deployed site or guaranteed recovery.
+
+The prepared `deploy/phonelink-nahabi.zip` extracts to `phone-link-main/` and includes the account-specific WSGI configuration and APK. Its extracted files were checked against the source; health, unknown-account rejection, sign-in, Secure cookies, origin checks, pairing, location reports, map assets, APK download, private-path denial and revocation passed using an isolated temporary database. The actual host was only read: on 19 October 2026, `https://nahabi.pythonanywhere.com/` and `/api/health` returned the provider's Coming Soon page with HTTP 404. Uploading the package and configuring/reloading the Web app are still required in the signed-in hosting account.
 
 ## Issues found and fixed
 
