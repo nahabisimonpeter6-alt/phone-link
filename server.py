@@ -49,7 +49,8 @@ class AppState:
         if self.public_url:
             parsed = urlsplit(self.public_url)
             if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.path:
-                raise ValueError("--public-url must be an origin such as https://phone.example.com")
+                raise ValueError(
+                    "--public-url must be an origin such as https://phone.example.com")
         self.rate_lock = threading.Lock()
         self.rates = defaultdict(deque)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -99,7 +100,8 @@ class AppState:
             while items and items[0] < now - seconds:
                 items.popleft()
             if len(items) >= limit:
-                raise APIError(429, "Too many attempts. Please wait a minute and try again.")
+                raise APIError(
+                    429, "Too many attempts. Please wait a minute and try again.")
             items.append(now)
 
 
@@ -138,7 +140,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             pass
         if not allowed:
-            raise APIError(400, "Set --public-url before using a public hostname.")
+            raise APIError(
+                400, "Set --public-url before using a public hostname.")
         return "http://" + host
 
     def respond(self, status, value, cookie=None):
@@ -161,7 +164,8 @@ class Handler(BaseHTTPRequestHandler):
         # only this site's origin, never account names or location parameters.
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Permissions-Policy", "geolocation=(self), camera=(), microphone=()")
+        self.send_header("Permissions-Policy",
+                         "geolocation=(self), camera=(), microphone=()")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
 
     def body(self):
@@ -216,9 +220,11 @@ class Handler(BaseHTTPRequestHandler):
             if method != "GET":
                 origin = self.headers.get("Origin")
                 if origin and origin != self.origin():
-                    raise APIError(403, "Request origin does not match this server.")
+                    raise APIError(
+                        403, "Request origin does not match this server.")
                 if self.headers.get("Sec-Fetch-Site") == "cross-site":
-                    raise APIError(403, "Cross-site requests are not accepted.")
+                    raise APIError(
+                        403, "Cross-site requests are not accepted.")
             if path.startswith("/api/"):
                 with self.server.db() as db:
                     result, status, cookie = self.api(db, method, path)
@@ -251,17 +257,22 @@ class Handler(BaseHTTPRequestHandler):
                 raise APIError(400, "Enter a username and password.")
             username = username.strip().lower()
             if not re.fullmatch(r"[a-z0-9_.-]{3,40}", username):
-                raise APIError(400, "Use 3–40 letters, numbers, dots, underscores or hyphens for your username.")
+                raise APIError(
+                    400, "Use 3–40 letters, numbers, dots, underscores or hyphens for your username.")
             if not 10 <= len(password) <= 128:
-                raise APIError(400, "Use a password between 10 and 128 characters.")
+                raise APIError(
+                    400, "Use a password between 10 and 128 characters.")
             if path == "/api/register":
+
                 uid, salt = secrets.token_hex(16), secrets.token_hex(16)
                 try:
-                    db.execute("INSERT INTO users VALUES(?,?,?,?)", (uid, username, salt, password_hash(password, salt)))
+                    db.execute("INSERT INTO users VALUES(?,?,?,?)",
+                               (uid, username, salt, password_hash(password, salt)))
                 except sqlite3.IntegrityError:
                     raise APIError(409, "This username is already in use.")
             else:
-                user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+                user = db.execute(
+                    "SELECT * FROM users WHERE username=?", (username,)).fetchone()
                 salt = user["salt"] if user else "00" * 16
                 calculated = password_hash(password, salt)
                 if not user or not hmac.compare_digest(calculated, user["password"]):
@@ -269,17 +280,23 @@ class Handler(BaseHTTPRequestHandler):
                 uid = user["id"]
             token = secrets.token_urlsafe(32)
             db.execute("DELETE FROM sessions WHERE expires<?", (now,))
-            db.execute("INSERT INTO sessions VALUES(?,?,?)", (digest(token), uid, now + SESSION_SECONDS))
+            db.execute("INSERT INTO sessions VALUES(?,?,?)",
+                       (digest(token), uid, now + SESSION_SECONDS))
             return {"username": username}, 200, self.session_cookie(token)
         if method == "POST" and path == "/api/pair":
             self.server.rate_limit((ip, "pair"), 10)
             code = data.get("code", "")
             if not isinstance(code, str):
-                raise APIError(400, "Enter the pairing code from your dashboard.")
+                raise APIError(
+                    400, "Enter the pairing code from your dashboard.")
             code = code.replace("-", "").replace(" ", "").upper()
-            row = db.execute("SELECT * FROM devices WHERE pairing_hash=? AND pairing_expires>? AND token_hash IS NULL", (digest(code), now)).fetchone()
+            db.execute(
+                "DELETE FROM devices WHERE user_id=? AND token_hash IS NULL AND pairing_expires<?", (user["id"], now))
+            row = db.execute(
+                "SELECT * FROM devices WHERE pairing_hash=? AND pairing_expires>? AND token_hash IS NULL", (digest(code), now)).fetchone()
             if not row:
-                raise APIError(400, "Pairing code is invalid, expired, or already used. Create a new one on the dashboard.")
+                raise APIError(
+                    400, "Pairing code is invalid, expired, or already used. Create a new one on the dashboard.")
             token = secrets.token_urlsafe(32)
             # Atomic claim: two simultaneous requests cannot both pair one code.
             changed = db.execute("UPDATE devices SET token_hash=?, paired_at=?, pairing_hash=NULL, pairing_expires=NULL WHERE id=? AND token_hash IS NULL",
@@ -291,9 +308,11 @@ class Handler(BaseHTTPRequestHandler):
             bearer = self.headers.get("Authorization", "")
             if not bearer.startswith("Bearer ") or len(bearer) > 200:
                 raise APIError(401, "Pair this phone again.")
-            row = db.execute("SELECT * FROM devices WHERE token_hash=?", (digest(bearer[7:]),)).fetchone()
+            row = db.execute(
+                "SELECT * FROM devices WHERE token_hash=?", (digest(bearer[7:]),)).fetchone()
             if not row:
-                raise APIError(401, "This phone was disconnected. Pair it again.")
+                raise APIError(
+                    401, "This phone was disconnected. Pair it again.")
             self.server.rate_limit((row["id"], "report"), 40)
             tracking = data.get("tracking")
             if not isinstance(tracking, bool):
@@ -305,17 +324,21 @@ class Handler(BaseHTTPRequestHandler):
             if loc is not None:
                 if not isinstance(loc, dict):
                     raise APIError(400, "Invalid location.")
-                values = [loc.get(k) for k in ("latitude", "longitude", "accuracy", "timestamp")]
+                values = [loc.get(k) for k in (
+                    "latitude", "longitude", "accuracy", "timestamp")]
                 if not all(type(v) in (int, float) and math.isfinite(v) for v in values):
-                    raise APIError(400, "Location needs finite latitude, longitude, accuracy and timestamp values.")
+                    raise APIError(
+                        400, "Location needs finite latitude, longitude, accuracy and timestamp values.")
                 lat, lng, accuracy, stamp = values
                 if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= accuracy <= 1000000 and 0 < stamp <= now + 120):
-                    raise APIError(400, "Location values are out of range. Check the phone's date and time.")
+                    raise APIError(
+                        400, "Location values are out of range. Check the phone's date and time.")
                 # Compare inside the write itself: concurrent reports may have
                 # both read the same old row before either transaction starts.
                 db.execute("UPDATE devices SET latitude=?,longitude=?,accuracy=?,located_at=? WHERE id=? AND (located_at IS NULL OR located_at<=?)",
                            (lat, lng, accuracy, stamp, row["id"], stamp))
-            db.execute("UPDATE devices SET tracking=?,seen_at=?,battery=? WHERE id=?", (int(tracking), now, battery, row["id"]))
+            db.execute("UPDATE devices SET tracking=?,seen_at=?,battery=? WHERE id=?", (int(
+                tracking), now, battery, row["id"]))
             return {"ok": True, "received_at": now}, 200, None
         user = self.user(db)
         if method == "GET" and path == "/api/me":
@@ -323,25 +346,31 @@ class Handler(BaseHTTPRequestHandler):
         if method == "POST" and path == "/api/logout":
             jar = cookies.SimpleCookie(self.headers.get("Cookie", ""))
             if "phonelink_session" in jar:
-                db.execute("DELETE FROM sessions WHERE token_hash=?", (digest(jar["phonelink_session"].value),))
+                db.execute("DELETE FROM sessions WHERE token_hash=?",
+                           (digest(jar["phonelink_session"].value),))
             return {"ok": True}, 200, self.session_cookie("", 0)
         if method == "GET" and path == "/api/devices":
-            rows = db.execute("SELECT id,name,paired_at,pairing_expires,seen_at,tracking,latitude,longitude,accuracy,located_at,battery FROM devices WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+            rows = db.execute(
+                "SELECT id,name,paired_at,pairing_expires,seen_at,tracking,latitude,longitude,accuracy,located_at,battery FROM devices WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
             return {"devices": [dict(r) for r in rows], "server_time": now}, 200, None
         if method == "POST" and path == "/api/devices":
             self.server.rate_limit((user["id"], "create"), 10)
             name = data.get("name", "")
             if not isinstance(name, str) or not 1 <= len(name.strip()) <= 50:
-                raise APIError(400, "Give your phone a name (up to 50 characters).")
+                raise APIError(
+                    400, "Give your phone a name (up to 50 characters).")
             if db.execute("SELECT COUNT(*) FROM devices WHERE user_id=?", (user["id"],)).fetchone()[0] >= 5:
-                raise APIError(400, "You can connect up to five phones. Disconnect an old phone first.")
+                raise APIError(
+                    400, "You can connect up to five phones. Disconnect an old phone first.")
             device_id = secrets.token_hex(16)
             code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(12))
-            db.execute("INSERT INTO devices(id,user_id,name,pairing_hash,pairing_expires,created_at) VALUES(?,?,?,?,?,?)", (device_id, user["id"], name.strip(), digest(code), now + PAIR_SECONDS, now))
+            db.execute("INSERT INTO devices(id,user_id,name,pairing_hash,pairing_expires,created_at) VALUES(?,?,?,?,?,?)",
+                       (device_id, user["id"], name.strip(), digest(code), now + PAIR_SECONDS, now))
             return {"id": device_id, "code": code, "expires_at": now + PAIR_SECONDS, "server_url": self.origin()}, 201, None
         match = re.fullmatch(r"/api/devices/([a-f0-9]{32})", path)
         if method == "DELETE" and match:
-            deleted = db.execute("DELETE FROM devices WHERE id=? AND user_id=?", (match[1], user["id"])).rowcount
+            deleted = db.execute(
+                "DELETE FROM devices WHERE id=? AND user_id=?", (match[1], user["id"])).rowcount
             if not deleted:
                 raise APIError(404, "Phone not found.")
             return {"ok": True}, 200, None
@@ -356,25 +385,30 @@ class Handler(BaseHTTPRequestHandler):
                  "/download/phonelink.apk": ROOT / "dist/phonelink.apk"}
         target = files.get(path)
         if not target or not target.is_file():
-            raise APIError(404, "Not found. Build the APK first if you are downloading it.")
+            raise APIError(
+                404, "Not found. Build the APK first if you are downloading it.")
         content = target.read_bytes()
         self.send_response(200)
         self.secure_headers()
-        self.send_header("Content-Type", "application/vnd.android.package-archive" if path.endswith(".apk") else (mimetypes.guess_type(target)[0] or "application/octet-stream"))
+        self.send_header("Content-Type", "application/vnd.android.package-archive" if path.endswith(
+            ".apk") else (mimetypes.guess_type(target)[0] or "application/octet-stream"))
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-cache")
         if path.endswith(".apk"):
-            self.send_header("Content-Disposition", 'attachment; filename="phonelink.apk"')
+            self.send_header("Content-Disposition",
+                             'attachment; filename="phonelink.apk"')
         self.end_headers()
         self.wfile.write(content)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1", help="Use 0.0.0.0 to allow phones on your Wi-Fi.")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Use 0.0.0.0 to allow phones on your Wi-Fi.")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--db", default=str(ROOT / "data/phonelink.sqlite3"))
-    parser.add_argument("--public-url", default=os.environ.get("PHONELINK_PUBLIC_URL"), help="Public HTTPS origin when behind a reverse proxy.")
+    parser.add_argument("--public-url", default=os.environ.get("PHONELINK_PUBLIC_URL"),
+                        help="Public HTTPS origin when behind a reverse proxy.")
     args = parser.parse_args()
     server = PhoneServer((args.host, args.port), args.db, args.public_url)
     print(f"PhoneLink running at http://{args.host}:{args.port}", flush=True)
